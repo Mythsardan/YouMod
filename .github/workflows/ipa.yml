@@ -131,7 +131,11 @@ jobs:
           IPA_URL: ${{ inputs.ipa_url }}
         run: |
           TAG="${IPA_URL#release:}"
-          gh release download "$TAG" -R "${{ github.repository }}" --pattern '*.ipa' --output youtube.ipa
+          # Draft releases are invisible to tag lookups, so find it via the releases list.
+          ASSET_URL=$(gh api "repos/${{ github.repository }}/releases" --paginate \
+            --jq ".[] | select(.tag_name==\"$TAG\") | .assets[] | select(.name|endswith(\".ipa\")) | .url" | head -1)
+          if [ -z "$ASSET_URL" ]; then echo "::error::No .ipa asset found on release '$TAG'"; exit 1; fi
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/octet-stream" "$ASSET_URL" -o youtube.ipa
 
       - name: Download IPA from direct URL
         if: ${{ !startsWith(inputs.ipa_url, 'https://mega.nz/') && !startsWith(inputs.ipa_url, 'release:') }}
